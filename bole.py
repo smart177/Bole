@@ -1,559 +1,343 @@
-<!DOCTYPE html>
-<html lang="am" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bole Bingo - Pro Gaming Hub</title>
-    <style>
-        /* የገጽ ከለር ቲማዎች (Dark & Light Themes) */
-        :root[data-theme="dark"] {
-            --bg-body: #090d16;
-            --surface: #131b2e;
-            --surface-card: #1a233a;
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
-            --primary: #8b5cf6;
-            --primary-hover: #7c3aed;
-            --primary-light: rgba(139, 92, 246, 0.15);
-            --border: #2a3650;
-            --success: #10b981;
-            --success-bg: rgba(16, 185, 129, 0.12);
-            --danger: #ef4444;
-            --danger-bg: rgba(239, 68, 68, 0.12);
-            --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-        }
+import logging
+import json
+import os
+from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+)
 
-        :root[data-theme="light"] {
-            --bg-body: #f8fafc;
-            --surface: #ffffff;
-            --surface-card: #ffffff;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --primary: #7c3aed;
-            --primary-hover: #6d28d9;
-            --primary-light: rgba(124, 58, 237, 0.1);
-            --border: #e2e8f0;
-            --success: #059669;
-            --success-bg: #d1fae5;
-            --danger: #dc2626;
-            --danger-bg: #fee2e2;
-            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        }
+# የሎግ ማስተካከያ
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
-        }
+# የቦቱ ቶክን፣ ዩዘርኔም እና የአድሚን ID
+TOKEN = "8898191008:AAFzmWMNTzybQDJQ6jqkoHPIzAgSvHSRRww"
+BOT_USERNAME = "boleebingo_bot"
+ADMIN_ID = 7396414604
 
-        body {
-            background: var(--bg-body);
-            color: var(--text-main);
-            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-align: center;
-            padding-bottom: 100px;
-            min-height: 100vh;
-            -webkit-tap-highlight-color: transparent;
-        }
+# የቻናል ሊንክ እና የቻናል ID (በቁጥር የሚጀምር ID ከሆኑ int በመጠቀም መፈተሽ አለበት)
+CHANNEL_URL = "https://t.me/+GUaf3rbt7-o2ZDBk"
+CHANNEL_ID = -1004335795977 
 
-        /* 10 ሰከንድ ሎዲንግ ስክሪን አኒሜሽን */
-        #loader-wrapper {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--bg-body);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
-        }
-        .loader-logo {
-            font-size: 32px;
-            font-weight: 900;
-            color: var(--primary);
-            margin-bottom: 20px;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            animation: pulseGlow 1.5s infinite;
-        }
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--border);
-            border-top: 4px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes pulseGlow {
-            0% { opacity: 0.5; transform: scale(0.97); }
-            50% { opacity: 1; transform: scale(1.03); }
-            100% { opacity: 0.5; transform: scale(0.97); }
-        }
+# ዳታዎችን በፋይል ለማስቀመጥ የሚረዱ የፋይል ስሞች
+DB_FILE = "bot_database.json"
 
-        /* ፕሪሚየም ሄደር (Header with Night/Day Mode Toggle) */
-        .app-header {
-            padding: 16px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: var(--shadow);
-        }
-        .app-header h1 {
-            color: var(--primary);
-            font-size: 20px;
-            font-weight: 800;
-            letter-spacing: 1px;
-        }
+def load_data():
+    """ከፋይል ዳታዎችን ማንበብ (Termux ሲዘጋ እንዳይጠፉ)"""
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                balances = {int(k): v for k, v in data.get("balances", {}).items()}
+                referrals = {int(k): v for k, v in data.get("referrals", {}).items()}
+                users = set(int(uid) for uid in data.get("users", []))
+                return balances, referrals, users
+        except Exception as e:
+            print(f"ዳታዎችን ሲያነብ ስህተት ተፈጥሯል: {e}")
+    return {}, {}, set()
 
-        .header-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
+def save_data():
+    """ዳታዎችን በቋሚነት ፋይል ላይ መጻፍ"""
+    data = {
+        "balances": user_balances,
+        "referrals": user_referrals,
+        "users": list(all_users)
+    }
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"ዳታዎችን ሲያስቀምጥ ስህተት ተፈጥሯል: {e}")
 
-        /* ናይት/ዳይ ሞድ መቀየሪያ ቁልፍ */
-        .theme-toggle-btn, .auto-play-btn {
-            background: var(--primary-light);
-            color: var(--primary);
-            border: 1px solid var(--border);
-            padding: 7px 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .theme-toggle-btn:hover, .auto-play-btn:hover {
-            background: var(--primary);
-            color: #ffffff;
-        }
-        .auto-play-btn.active {
-            background: var(--primary);
-            color: #ffffff;
-            box-shadow: 0 0 15px var(--primary-light);
-        }
+# ዳታዎችን መጫን
+user_balances, user_referrals, all_users = load_data()
 
-        /* ሒሳብ እና ምርጫ ማሳያ ባር */
-        .game-top-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--surface-card);
-            margin: 16px;
-            padding: 14px 20px;
-            border-radius: 16px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-        }
-        .balance-info span {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: block;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .balance-info strong {
-            font-size: 18px;
-            color: var(--primary);
-            font-weight: 800;
-        }
+# 1. /start ሲሉ የሚሰጠው ምላሽ
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    user_first_name = user.first_name
+    
+    all_users.add(user_id)
 
-        /* የስታተስ ሣጥን */
-        .status-box {
-            background: var(--danger-bg);
-            color: var(--danger);
-            padding: 12px;
-            border-radius: 12px;
-            margin: 0 16px 16px 16px;
-            font-weight: 600;
-            font-size: 13px;
-            border: 1px solid var(--border);
-        }
-        .status-box.active {
-            background: var(--success-bg);
-            color: var(--success);
-        }
+    if user_id not in user_balances:
+        user_balances[user_id] = 50.0
+        user_referrals[user_id] = 0
+    
+    save_data()
 
-        /* የገጾች መዋቅር */
-        .page-container {
-            display: none;
-            padding: 0 12px;
-        }
-        .page-container.active {
-            display: block;
-        }
+    # ሪፈራል ኮድ ማረጋገጥ
+    args = context.args
+    if args and args[0].startswith("ref_"):
+        try:
+            inviter_id = int(args[0].split("_")[1])
+            if inviter_id != user_id:
+                if inviter_id in user_balances:
+                    user_balances[inviter_id] += 10.0
+                    user_referrals[inviter_id] += 1
+                    save_data()
+                    try:
+                        await context.bot.send_message(
+                            chat_id=inviter_id,
+                            text=f"🎉 እንኳን ደስ አለዎት! አዲስ ሰው ጋብዘዋል፤ 10.00 ብር ወደ አካውንትዎ ተጨምሯል! 💰"
+                        )
+                    except Exception:
+                        pass
+        except ValueError:
+            pass
 
-        /* አዲስ የቢንጎ ሰሌዳ ዲዛይን */
-        .bingo-grid {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 8px;
-            max-width: 520px;
-            width: 100%;
-            margin: 0 auto;
-            background: var(--surface-card);
-            padding: 16px;
-            border-radius: 20px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-        }
-        .bingo-cell {
-            background: var(--bg-body);
-            color: var(--text-main);
-            font-weight: 700;
-            font-size: 13px;
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 10px;
-            cursor: pointer;
-            border: 1px solid var(--border);
-            user-select: none;
-        }
-        .bingo-cell:hover {
-            border-color: var(--primary);
-            transform: translateY(-2px);
-        }
-        .bingo-cell.selected {
-            background: var(--primary);
-            color: #ffffff;
-            border-color: var(--primary);
-            box-shadow: 0 0 12px var(--primary-light);
-            transform: scale(1.05);
-        }
+    # ቻናል መቀላቀሉን በ ID ማረጋገጥ
+    try:
+        member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        if member.status in ["left", "kicked"]:
+            await ask_to_join(update, user_first_name)
+            return
+    except Exception:
+        await ask_to_join(update, user_first_name)
+        return
 
-        /* የካርድ ገጾች (Wallet, Rank, Profile) */
-        .content-card {
-            background: var(--surface-card);
-            margin: 20px auto;
-            padding: 30px;
-            width: 90%;
-            max-width: 400px;
-            border-radius: 20px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
-        .content-card h3 {
-            color: var(--primary);
-            margin-bottom: 12px;
-            font-size: 20px;
-        }
+    await show_main_menu(update.message, user_first_name, user_id)
 
-        /* ፖፕ-አፕ ሞዳል */
-        .custom-modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(5px);
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background: var(--surface-card);
-            border: 1px solid var(--border);
-            padding: 25px;
-            border-radius: 20px;
-            width: 85%;
-            max-width: 320px;
-            text-align: center;
-            box-shadow: var(--shadow);
-        }
-        .modal-content p {
-            color: var(--text-main);
-            font-size: 15px;
-            margin-bottom: 20px;
-        }
-        .modal-btn {
-            background: var(--primary);
-            color: #ffffff;
-            border: none;
-            padding: 10px 30px;
-            font-weight: 700;
-            border-radius: 10px;
-            cursor: pointer;
-        }
+# 2. /menu ሲሉ ዋናውን ሜኑ የሚያመጣ ትዕዛዝ
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    user_first_name = user.first_name
+    
+    all_users.add(user_id)
 
-        /* የታችኛው ፉተር ሜኑ */
-        .footer-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: var(--surface);
-            display: flex;
-            justify-content: space-around;
-            padding: 12px 0;
-            border-top: 1px solid var(--border);
-            z-index: 1000;
-            box-shadow: var(--shadow);
-        }
-        .nav-item {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 11px;
-            font-weight: 600;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            cursor: pointer;
-            flex: 1;
-        }
-        .nav-item.active {
-            color: var(--primary);
-        }
-        .nav-item span {
-            font-size: 20px;
-            margin-bottom: 4px;
-        }
+    try:
+        member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        if member.status in ["left", "kicked"]:
+            await ask_to_join(update, user_first_name)
+            return
+    except Exception:
+        await ask_to_join(update, user_first_name)
+        return
 
-        @media (max-width: 480px) {
-            .bingo-grid { gap: 5px; padding: 10px; }
-            .bingo-cell { font-size: 11px; border-radius: 8px; }
-        }
-    </style>
-</head>
-<body>
+    await show_main_menu(update.message, user_first_name, user_id)
 
-    <!-- 10 ሰከንድ ሎዲንግ አኒሜሽን ስክሪን -->
-    <div id="loader-wrapper">
-        <div class="loader-logo">Bole Pro</div>
-        <div class="spinner"></div>
-    </div>
+async def ask_to_join(update: Update, user_first_name: str):
+    join_keyboard = [
+        [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_URL)],
+        [InlineKeyboardButton("✅ Complete Join (ቼክ አድርግ)", callback_data="check_join")]
+    ]
+    reply_markup = InlineKeyboardMarkup(join_keyboard)
 
-    <!-- አዲስ የላይኛው ሄደር (ከ Night/Day Mode ቁልፍ ጋር) -->
-    <header class="app-header">
-        <h1>Bole Pro</h1>
-        <div class="header-actions">
-            <button class="theme-toggle-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
-            <button id="autoPlayBtn" class="auto-play-btn" onclick="toggleAutoPlay()">
-                <span id="autoIcon">🤖</span> <span id="autoText">Auto</span>
-            </button>
-        </div>
-    </header>
+    text = (
+        f"👋 ሰላም {user_first_name}!\n\n"
+        f"ቦቱን ለመጠቀም መጀመሪያ ከታች ያለውን ቻናል መቀላቀል (Join ማድረግ) አለብዎት።\n"
+        f"ቻናሉን ከተቀላቀሉ በኋላ **'Complete Join'** የሚለውን ይጫኑ!"
+    )
+    
+    if update.callback_query:
+        await update.callback_query.message.reply_text(text, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup)
 
-    <!-- የሒሳብ እና ቆጣሪ ባር -->
-    <section class="game-top-bar">
-        <div class="balance-info">
-            <span>Balance</span>
-            <strong>50.00 ETB</strong>
-        </div>
-        <div style="font-size: 13px; color: var(--primary); font-weight: 700;">
-            የተመረጡ: <span id="count">0</span> / 4
-        </div>
-    </section>
+# Complete Join አዝራር ሲጫን
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    
+    if query.data == "check_join":
+        user_id = query.from_user.id
+        user_first_name = query.from_user.first_name
 
-    <!-- የጨዋታ ሁኔታ ማሳያ -->
-    <div id="gameStatus" class="status-box">Please wait, next game round</div>
+        try:
+            member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+            if member.status in ["left", "kicked"]:
+                await query.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን Join ያድርጉ!", show_alert=True)
+                return
+        except Exception:
+            await query.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን Join ያድርጉ!", show_alert=True)
+            return
 
-    <!-- የቤት ገጽ (Bingo Grid) -->
-    <main id="homePage" class="page-container active">
-        <div class="bingo-grid" id="bingoGrid">
-            <?php
-            for ($i = 1; $i <= 120; $i++) {
-                echo "<div class='bingo-cell' data-num='$i' onclick='selectCell(this)'>$i</div>";
-            }
-            ?>
-        </div>
-    </main>
+        # ቻናሉን ገብቷል -> ወደ ቀጣዩ ደረጃ (ሜኑ) እናልፋለን
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        
+        await show_main_menu(query.message, user_first_name, user_id)
 
-    <!-- የኪስ ቦርሳ ገጽ -->
-    <section id="walletPage" class="page-container">
-        <div class="content-card">
-            <h3>Wallet Balance</h3>
-            <p style="font-size: 26px; font-weight: 800; margin: 15px 0; color: var(--success);">50.00 ETB</p>
-            <p style="color: var(--text-muted); font-size: 13px;">Main Play Account</p>
-        </div>
-    </section>
+async def show_main_menu(message, user_first_name: str, user_id: int):
+    if user_id == ADMIN_ID:
+        admin_notif = (
+            "👑 አድሚን ሆኖ ገብቷል!\n"
+            "- ተጠቃሚ ለማየት: `/check <user_id>`\n"
+            "- ጠቅላላ ተጠቃሚዎችን ለማየት: `/stats`\n"
+            "- መልዕክት ለማሰራጨት: `/broadcast <መልዕክት>`"
+        )
+        await message.reply_text(admin_notif)
 
-    <!-- የደረጃ ገጽ -->
-    <section id="rankPage" class="page-container">
-        <div class="content-card">
-            <h3>Leaderboard</h3>
-            <p style="color: var(--text-muted); margin-top: 15px; font-size: 14px;">የተሸላሚዎች ዝርዝር በዚህ ይደረደራል...</p>
-        </div>
-    </section>
+    keyboard = [
+        [KeyboardButton("🎮 Play Bole Bingo")],
+        [KeyboardButton("📝 Register"), KeyboardButton("🌐 Check Balance")],
+        [KeyboardButton("💳 Deposit"), KeyboardButton("💰 Withdraw")],
+        [KeyboardButton("🔗 Invite & Earn"), KeyboardButton("📞 Contact Support")],
+        [KeyboardButton("📖 Instruction"), KeyboardButton("🎁 Transfer")],
+        [KeyboardButton("📱 Share Contact (ስልክ ቁጥር አጋራ)", request_contact=True)]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-    <!-- የፕሮፋይል ገጽ -->
-    <section id="profilePage" class="page-container">
-        <div class="content-card">
-            <h3>User Profile</h3>
-            <p style="color: var(--text-muted); margin-top: 15px; font-size: 14px;">የመለያዎ መረጃዎች እና ቅንብሮች...</p>
-        </div>
-    </section>
+    inline_keyboard = [
+        [InlineKeyboardButton("🎮 Play Bole Bingo", web_app=WebAppInfo(url="https://grandbingo.free.nf"))]
+    ]
+    inline_markup = InlineKeyboardMarkup(inline_keyboard)
 
-    <!-- ፖፕ-አፕ ማሳወቂያ -->
-    <div id="customModal" class="custom-modal">
-        <div class="modal-content">
-            <p id="modalMessage">ማሳወቂያ</p>
-            <button class="modal-btn" onclick="closeModal()">OK</button>
-        </div>
-    </div>
+    welcome_message = (
+        f"✅ ቻናሉን በተሳካ ሁኔታ ተቀላቀለዋል!\n"
+        f"👋 Welcome {user_first_name} to Bole Bingo! Choose an Option below.\n\n"
+        "🔗 ሰዎችን በመጋበዝ በሰው ቁጥር 10 ብር ይሸለሙ!\n"
+        "🎮 ጨዋታውን በቀጥታ ቦቱ ውስጥ ለመክፈት ከታች ያለውን ቁልፍ ይጫኑ:"
+    )
+    
+    await message.reply_text(welcome_message, reply_markup=reply_markup)
+    await message.reply_text("👇 ጨዋታውን ለመጀመር እዚህ ይጫኑ:", reply_markup=inline_markup)
 
-    <!-- የታችኛው ናቪጌሽን ባር -->
-    <nav class="footer-nav">
-        <div class="nav-item active" onclick="switchPage('home', this)">
-            <span>🏠</span> Home
-        </div>
-        <div class="nav-item" onclick="switchPage('wallet', this)">
-            <span>💳</span> Wallet
-        </div>
-        <div class="nav-item" onclick="switchPage('rank', this)">
-            <span>🏆</span> Rank
-        </div>
-        <div class="nav-item" onclick="switchPage('profile', this)">
-            <span>👤</span> Profile
-        </div>
-    </nav>
+# የአድሚን ትዕዛዞች
+async def check_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("⛔ ይቅርታ, ይህንን ትዕዛዝ መጠቀም የሚችሉት አድሚኖች ብቻ ናቸው።")
+        return
 
-    <script>
-        // የ 10 ሰከንድ ሎዲንግ አኒሜሽን ስክሪፕት
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                const loader = document.getElementById('loader-wrapper');
-                loader.style.opacity = '0';
-                loader.style.visibility = 'hidden';
-            }, 10000); 
-        });
+    if not context.args:
+        await update.message.reply_text("⚠️ አጠቃቀም: `/check <user_id>`", parse_mode="Markdown")
+        return
 
-        // Night / Day Mode Toggle Logic
-        function toggleTheme() {
-            const html = document.documentElement;
-            const themeBtn = document.getElementById('themeBtn');
-            if (html.getAttribute('data-theme') === 'dark') {
-                html.setAttribute('data-theme', 'light');
-                themeBtn.innerText = '☀️';
-            } else {
-                html.setAttribute('data-theme', 'dark');
-                themeBtn.innerText = '🌙';
-            }
-        }
+    try:
+        target_id = int(context.args[0])
+        balance = user_balances.get(target_id, "የለም / አልተመዘገበም")
+        referrals = user_referrals.get(target_id, 0)
+        
+        await update.message.reply_text(
+            f"🔍 **የተጠቃሚ መረጃ:**\n🆔 ID: `{target_id}`\n💰 ቀሪ ሂሳብ: `{balance}` ብር\n👥 ሪፈራል: `{referrals}` ሰው",
+            parse_mode="Markdown"
+        )
+    except ValueError:
+        await update.message.reply_text("⚠️ ትክክለኛ የሰው ID ያስገቡ።")
 
-        let isRoundStarted = false;
-        let isAutoPlayActive = false;
+async def bot_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("⛔ ይቅርታ, ይህንን ትዕዛዝ መጠቀም የሚችሉት አድሚኖች ብቻ ናቸው።")
+        return
 
-        function showCustomAlert(message) {
-            document.getElementById('modalMessage').innerText = message;
-            document.getElementById('customModal').style.display = 'flex';
-        }
+    total_users = len(all_users)
+    stats_text = f"📊 **የቦቱ ተጠቃሚዎች ስታትስቲክስ:**\n\n👥 ጠቅላላ ተጠቃሚዎች ብዛት: `{total_users}`\n\n"
+    stats_text += "📜 **የተጠቃሚዎች መታወቂያ (IDs) ዝርዝር:**\n"
 
-        function closeModal() {
-            document.getElementById('customModal').style.display = 'none';
-        }
+    for uid in list(all_users)[:30]:
+        bal = user_balances.get(uid, 0)
+        ref = user_referrals.get(uid, 0)
+        stats_text += f"• ` {uid} ` (💰 {bal}ብር, 👥 {ref}ሪፈራል)\n"
 
-        function toggleAutoPlay() {
-            if (isRoundStarted) {
-                showCustomAlert("Please wait, this round started!");
-                return;
-            }
+    if total_users > 30:
+        stats_text += f"\n...እና ሌሎችም {total_users - 30} ተጠቃሚዎች አሉ።"
 
-            isAutoPlayActive = !isAutoPlayActive;
-            const btn = document.getElementById('autoPlayBtn');
-            const text = document.getElementById('autoText');
-            const icon = document.getElementById('autoIcon');
+    await update.message.reply_text(stats_text, parse_mode="Markdown")
 
-            if (isAutoPlayActive) {
-                btn.classList.add('active');
-                text.innerText = "ON";
-                icon.innerText = "⚡";
+async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("⛔ ይቅርታ, አድሚን ብቻ ናቸው የሚጠቀሙት።")
+        return
 
-                document.querySelectorAll('.bingo-cell.selected').forEach(c => c.classList.remove('selected'));
+    message_text = " ".join(context.args)
+    if not message_text:
+        await update.message.reply_text("⚠️ አጠቃቀም: `/broadcast <መልዕክት>`", parse_mode="Markdown")
+        return
 
-                let selectedNumbers = [];
-                while (selectedNumbers.length < 4) {
-                    let randomNum = Math.floor(Math.random() * 120) + 1;
-                    if (!selectedNumbers.includes(randomNum)) {
-                        selectedNumbers.push(randomNum);
-                    }
-                }
+    success_count = 0
+    fail_count = 0
+    status_msg = await update.message.reply_text("⏳ መልዕክቱ ለሁሉም ተጠቃሚዎች በመላክ ላይ ነው...")
 
-                selectedNumbers.forEach(num => {
-                    let cell = document.querySelector(`.bingo-cell[data-num='${num}']`);
-                    if (cell) cell.classList.add('selected');
-                });
+    for uid in all_users:
+        try:
+            await context.bot.send_message(chat_id=uid, text=message_text, parse_mode="Markdown")
+            success_count += 1
+        except Exception:
+            fail_count += 1
 
-                document.getElementById('count').innerText = "4";
-            } else {
-                btn.classList.remove('active');
-                text.innerText = "Auto";
-                icon.innerText = "🤖";
+    await status_msg.edit_text(f"✅ ብሮድካስት ተጠናቋል!\n📤 የደረሳቸው: {success_count}\n❌ ያልደረሳቸው: {fail_count}")
 
-                document.querySelectorAll('.bingo-cell.selected').forEach(c => c.classList.remove('selected'));
-                document.getElementById('count').innerText = "0";
-            }
-        }
+async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    contact = update.message.contact
+    phone_number = contact.phone_number
+    user_name = update.effective_user.first_name
+    await update.message.reply_text(f"መረጃዎ ደርሶናል! {user_name}፣ ስልክ ቁጥርዎ ({phone_number}) ተመዝግቧል።")
 
-        function selectCell(cell) {
-            if (isRoundStarted) {
-                showCustomAlert("Please wait, this round started!");
-                return;
-            }
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    user_first_name = user.first_name
+    
+    try:
+        member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        if member.status in ["left", "kicked"]:
+            await ask_to_join(update, user_first_name)
+            return
+    except Exception:
+        await ask_to_join(update, user_first_name)
+        return
 
-            if (isAutoPlayActive) {
-                showCustomAlert("እባክዎ መጀመሪያ Auto Mode ያጥፉ!");
-                return;
-            }
+    text = update.message.text
+    
+    all_users.add(user_id)
+    if user_id not in user_balances:
+        user_balances[user_id] = 50.0
+        user_referrals[user_id] = 0
+    
+    save_data()
 
-            cell.classList.toggle('selected');
-            
-            const selectedCells = document.querySelectorAll('.bingo-grid .bingo-cell.selected');
-            const selectedCount = selectedCells.length;
-            document.getElementById('count').innerText = selectedCount;
-            
-            if (selectedCount > 4) {
-                showCustomAlert('ከ 4 በላይ ቁጥር መምረጥ አይችሉም!');
-                cell.classList.remove('selected');
-                document.getElementById('count').innerText = document.querySelectorAll('.bingo-grid .bingo-cell.selected').length;
-            }
-        }
+    if text == "🎮 Play Bole Bingo":
+        await update.message.reply_text("👇 እባክዎ ከላይ የተላከውን የጨዋታ አዝራር ይጠቀሙ።")
+    elif text == "📝 Register":
+        await update.message.reply_text("📝 ለመመዝገብ እባክዎ ስልክ ቁጥርዎን ከታች ባለው አዝራር ያጋሩ።")
+    elif text == "🌐 Check Balance":
+        balance = user_balances[user_id]
+        referrals = user_referrals[user_id]
+        await update.message.reply_text(f"💰 ቀሪ ሂሳብ: **{balance:.2f} ብር**\n👥 የጋበዟቸው: **{referrals} ሰው**")
+    elif text == "🔗 Invite & Earn":
+        referral_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
+        await update.message.reply_text(f"🔗 **ሊንክዎ:**\n`{referral_link}`\n\nእያንዳንዱ ሰው ሲመጣ 10 ብር ያግኙ!")
+    elif text == "💳 Deposit":
+        await update.message.reply_text("💳 ገንዘብ ለማስገባት መመሪያዎችን ይከተሉ።")
+    elif text == "💰 Withdraw":
+        await update.message.reply_text("💰 ገንዘብ ለማውጣት አነስተኛውን ሂሳብ ያሟሉ።")
+    elif text == "📞 Contact Support":
+        await update.message.reply_text("☎️ ድጋፍ ማዕከልን ያግኙ።")
+    elif text == "📖 Instruction":
+        await update.message.reply_text("📖 የጨዋታ መመሪያዎች...")
+    elif text == "🎁 Transfer":
+        await update.message.reply_text("🎁 ሂሳብ ለማስተላለፍ የጓደኛ ID ያስገቡ።")
+    else:
+        await update.message.reply_text("እባክዎ ከታች ያሉትን አማራጮች ይጠቀሙ።")
 
-        function switchPage(pageName, element) {
-            document.querySelectorAll('.page-container').forEach(page => {
-                page.classList.remove('active');
-            });
-            
-            document.getElementById(pageName + 'Page').classList.add('active');
+def main():
+    application = ApplicationBuilder().token(TOKEN).build()
 
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            element.classList.add('active');
-        }
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("menu", menu_command))
+    application.add_handler(CommandHandler("check", check_user))
+    application.add_handler(CommandHandler("stats", bot_stats))
+    application.add_handler(CommandHandler("broadcast", broadcast_message))
+    
+    application.add_handler(CallbackQueryHandler(button_handler))
+    
+    application.add_handler(MessageHandler(filters.CONTACT, contact_handler))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-        function setGameRoundState(started) {
-            isRoundStarted = started;
-            const statusBox = document.getElementById('gameStatus');
-            
-            if (started) {
-                statusBox.innerText = "Please wait, this round started!";
-                statusBox.classList.add('active');
-            } else {
-                statusBox.innerText = "Please wait, next game round";
-                statusBox.classList.remove('active');
-            }
-        }
-    </script>
-</body>
-</html>
+    print("Bole Bingo በቻናል ID እና ትክክለኛ ቼክ በመሥራት ላይ ነው...")
+    application.run_polling()
+
+if __name__ == "__main__":
+    main()
