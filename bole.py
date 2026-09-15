@@ -19,6 +19,7 @@ def run_web():
 threading.Thread(target=run_web, daemon=True).start()
 
 # ከዚህ በታች የእርስዎ የቦት ኮድ ይ ቀጥላል...
+
 import logging
 import json
 import os
@@ -38,13 +39,13 @@ logging.basicConfig(
 )
 
 # የቦቱ ቶክን፣ ዩዘርኔም እና የአድሚን ID
-TOKEN = "8898191008:AAFzmWMNTzybQDJQ6jqkoHPIzAgSvHSRRww"
-BOT_USERNAME = "boleebingo_bot"
-ADMIN_ID = 7396414604
+TOKEN = "8699981749:AAHVNnQFzwY2RsTJHGcQe1hQlsIBYSwWWH4"
+BOT_USERNAME = "@betesebbingo2_bot"
+ADMIN_ID = 1124325056
 
 # የቻናል ሊንክ እና የቻናል ID (በቁጥር የሚጀምር ID ከሆኑ int በመጠቀም መፈተሽ አለበት)
-CHANNEL_URL = "https://t.me/+GUaf3rbt7-o2ZDBk"
-CHANNEL_ID = -1004335795977 
+CHANNEL_URL = "https://t.me/All_Best_Games_Zone"
+CHANNEL_ID = -1002274889155 
 
 # ዳታዎችን በፋይል ለማስቀመጥ የሚረዱ የፋይል ስሞች
 DB_FILE = "bot_database.json"
@@ -192,8 +193,8 @@ async def show_main_menu(message, user_first_name: str, user_id: int):
     if user_id == ADMIN_ID:
         admin_notif = (
             "👑 አድሚን ሆኖ ገብቷል!\n"
-            "- ተጠቃሚ ለማየት: `/check <user_id>`\n"
-            "- ጠቅላላ ተጠቃሚዎችን ለማየት: `/stats`\n"
+            "- ተጠቃሚ ለማየት: `/checklist <user_id>`\n"
+            "- ጠቅላላ ተጠቃሚዎችን ለማየት: `checkall`\n"
             "- መልዕክት ለማሰራጨት: `/broadcast <መልዕክት>`"
         )
         await message.reply_text(admin_notif)
@@ -209,13 +210,13 @@ async def show_main_menu(message, user_first_name: str, user_id: int):
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
     inline_keyboard = [
-        [InlineKeyboardButton("🎮 Play Bole Bingo", web_app=WebAppInfo(url="https://grandbingo.free.nf"))]
+        [InlineKeyboardButton("🎮 Play Beteseb Bingo", web_app=WebAppInfo(url="https://grandbingo.free.nf"))]
     ]
     inline_markup = InlineKeyboardMarkup(inline_keyboard)
 
     welcome_message = (
         f"✅ ቻናሉን በተሳካ ሁኔታ ተቀላቀለዋል!\n"
-        f"👋 Welcome {user_first_name} to Bole Bingo! Choose an Option below.\n\n"
+        f"👋 Welcome {user_first_name} to Beteseb Bingo! Choose an Option below.\n\n"
         "🔗 ሰዎችን በመጋበዝ በሰው ቁጥር 10 ብር ይሸለሙ!\n"
         "🎮 ጨዋታውን በቀጥታ ቦቱ ውስጥ ለመክፈት ከታች ያለውን ቁልፍ ይጫኑ:"
     )
@@ -314,12 +315,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     all_users.add(user_id)
     if user_id not in user_balances:
-        user_balances[user_id] = 50.0
+        user_balances[user_id] = 30.0
         user_referrals[user_id] = 0
     
     save_data()
 
-    if text == "🎮 Play Bole Bingo":
+    if text == "🎮 Play Beteseb Bingo ":
         await update.message.reply_text("👇 እባክዎ ከላይ የተላከውን የጨዋታ አዝራር ይጠቀሙ።")
     elif text == "📝 Register":
         await update.message.reply_text("📝 ለመመዝገብ እባክዎ ስልክ ቁጥርዎን ከታች ባለው አዝራር ያጋሩ።")
@@ -339,7 +340,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "📖 Instruction":
         await update.message.reply_text("📖 የጨዋታ መመሪያዎች...")
     elif text == "🎁 Transfer":
-        await update.message.reply_text("🎁 ሂሳብ ለማስተላለፍ የጓደኛ ID ያስገቡ።")
+        await update.message.reply_text("🎁 ሂሳብ ለማስተላለፍ የጓደኛ Phone ያስገቡ።")
     else:
         await update.message.reply_text("እባክዎ ከታች ያሉትን አማራጮች ይጠቀሙ።")
 
@@ -348,8 +349,8 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("menu", menu_command))
-    application.add_handler(CommandHandler("check", check_user))
-    application.add_handler(CommandHandler("stats", bot_stats))
+    application.add_handler(CommandHandler("checklist", check_user))
+    application.add_handler(CommandHandler("checkall", bot_stats))
     application.add_handler(CommandHandler("broadcast", broadcast_message))
     
     application.add_handler(CallbackQueryHandler(button_handler))
@@ -357,7 +358,7 @@ def main():
     application.add_handler(MessageHandler(filters.CONTACT, contact_handler))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    print("Bole Bingo በቻናል ID እና ትክክለኛ ቼክ በመሥራት ላይ ነው...")
+    print("EFO Bingo በቻናል ID እና ትክክለኛ ቼክ በመሥራት ላይ ነው...")
     application.run_polling()
 
 if __name__ == "__main__":
